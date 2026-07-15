@@ -1,0 +1,19 @@
+apiVersion: v1
+
+kind: Service
+
+metadata:
+  name: catalog-service
+  namespace: retail-store
+
+spec:
+
+  selector:
+    app: catalog
+
+  ports:
+
+  - port: 80
+    targetPort: 8080
+
+  type: ClusterIP
