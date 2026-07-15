@@ -1,0 +1,161 @@
+pipeline {
+    agent any
+
+    environment {
+        K8S_MASTER = "ubuntu@172.31.46.140"
+
+        CATALOG_IMAGE = "aftabattar/retail-catalog"
+        ORDERS_IMAGE  = "aftabattar/retail-orders"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ==========================
+        // CATALOG
+        // ==========================
+
+        stage('Build Catalog Image') {
+            steps {
+                sh '''
+                docker build --pull \
+                -t ${CATALOG_IMAGE}:${BUILD_NUMBER} \
+                -t ${CATALOG_IMAGE}:latest \
+                ./src/catalog
+                '''
+            }
+        }
+
+        stage('Push Catalog Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                    docker push ${CATALOG_IMAGE}:${BUILD_NUMBER}
+                    docker push ${CATALOG_IMAGE}:latest
+
+                    docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Catalog') {
+            steps {
+                sshagent(credentials: ['k8s-master-ssh']) {
+
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ${K8S_MASTER} "
+
+                    kubectl set image deployment/catalog \
+                    catalog=${CATALOG_IMAGE}:${BUILD_NUMBER} \
+                    -n retail-store
+
+                    kubectl rollout status deployment/catalog \
+                    -n retail-store
+
+                    echo '===== Catalog Deployment ====='
+                    kubectl get deployment catalog -n retail-store
+
+                    echo '===== Catalog Pods ====='
+                    kubectl get pods -n retail-store
+
+                    "
+                    '''
+                }
+            }
+        }
+
+        // ==========================
+        // ORDERS
+        // ==========================
+
+        stage('Build Orders Image') {
+            steps {
+                sh '''
+                docker build --pull \
+                -t ${ORDERS_IMAGE}:${BUILD_NUMBER} \
+                -t ${ORDERS_IMAGE}:latest \
+                ./src/orders
+                '''
+            }
+        }
+
+        stage('Push Orders Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                    docker push ${ORDERS_IMAGE}:${BUILD_NUMBER}
+                    docker push ${ORDERS_IMAGE}:latest
+
+                    docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Orders') {
+            steps {
+                sshagent(credentials: ['k8s-master-ssh']) {
+
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ${K8S_MASTER} "
+
+                    kubectl set image deployment/orders \
+                    orders=${ORDERS_IMAGE}:${BUILD_NUMBER} \
+                    -n retail-store
+
+                    kubectl rollout status deployment/orders \
+                    -n retail-store
+
+                    echo '===== Orders Deployment ====='
+                    kubectl get deployment orders -n retail-store
+
+                    echo '===== Orders Pods ====='
+                    kubectl get pods -n retail-store
+
+                    "
+                    '''
+                }
+            }
+        }
+
+    }
+
+    post {
+
+        always {
+            cleanWs()
+        }
+
+        success {
+            echo "======================================="
+            echo "Deployment Successful"
+            echo "======================================="
+        }
+
+        failure {
+            echo "======================================="
+            echo "Deployment Failed"
+            echo "======================================="
+        }
+    }
+}
