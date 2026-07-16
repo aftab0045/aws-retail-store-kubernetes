@@ -1,586 +1,546 @@
-# AWS Cloud Native Retail Store Application
+#  AWS Cloud Native Retail Store Application on Kubernetes
 
-## Overview
-
-This project demonstrates the deployment of a cloud-native Retail Store microservices application on a self-managed Kubernetes cluster running on AWS EC2.
-
-The objective of this project was to gain hands-on experience with real-world DevOps practices including Infrastructure provisioning, Docker containerization, Kubernetes orchestration, Helm package management, Persistent Volumes, Ingress configuration, rolling deployments, and cloud networking.
-
-The complete infrastructure was manually configured without using managed Kubernetes services like Amazon EKS.
+> A production-style Cloud & DevOps project demonstrating the deployment of a multi-tier microservices application on Amazon Web Services (AWS) using Docker, Kubernetes, Ingress, Persistent Volumes, and DevOps best practices.
 
 ---
 
-# Architecture
+#  Project Overview
+
+This project demonstrates how to deploy a cloud-native microservices application on an AWS-based Kubernetes cluster. The application consists of multiple independent services that communicate with each other using Kubernetes networking. Each service is containerized with Docker and deployed as Kubernetes Deployments and Services. The complete infrastructure is hosted on Amazon EC2 instances running Ubuntu Server with Kubernetes installed using kubeadm.
+
+The primary objective of this project was to gain hands-on experience with real-world DevOps practices such as containerization, orchestration, service discovery, networking, storage management, ingress routing, scaling architecture, and production deployment strategies.
+
+Unlike a simple Docker deployment, this project focuses on deploying a complete distributed application similar to what organizations use in production environments.
+
+---
+
+#  Project Objectives
+
+The main goals of this project were:
+
+- Learn Kubernetes architecture from scratch.
+- Deploy a complete microservices application.
+- Containerize applications using Docker.
+- Build and manage Kubernetes clusters.
+- Configure networking between services.
+- Implement Persistent Volumes.
+- Configure Ingress Controller.
+- Practice production deployment concepts.
+- Understand real DevOps workflows.
+- Prepare a production-ready portfolio project.
+
+---
+
+# Project Architecture
 
 ```
                     Internet
-                        |
-                  AWS Security Group
-                        |
-                 AWS EC2 Instances
-                        |
-        ------------------------------------
-        |                                  |
-    Kubernetes Master                 Worker Nodes
-        |                           /             \
-        |                    Worker-1         Worker-2
-        |
-        |---------------- Kubernetes Cluster ----------------|
-                          |
-                    kube-apiserver
-                          |
-                    Kubernetes Services
-                          |
-                  Retail Store Application
-                          |
- ----------------------------------------------------------
- | Catalog | Orders | Checkout | UI | DynamoDB Local DB |
- ----------------------------------------------------------
+                        │
+                AWS Security Group
+                        │
+                  Ingress Controller
+                        │
+                 Kubernetes Cluster
+                        │
+ ┌───────────────────────────────────────────────────────┐
+ │                                                       │
+ │                 Retail Store Namespace                │
+ │                                                       │
+ │  UI Service  →  Catalog Service  → Orders Service     │
+ │                     │                 │               │
+ │                     └──── Checkout ───┘               │
+ │                                                       │
+ │                 DynamoDB Local Database               │
+ │                                                       │
+ └───────────────────────────────────────────────────────┘
 
 ```
 
+![](/Images/Screenshot%202026-07-15%20170547.png)
+
 ---
 
-# Infrastructure
+#  AWS Infrastructure
 
-## AWS
+The complete infrastructure was deployed on AWS EC2.
 
-- AWS EC2
+The cluster consists of four Ubuntu Linux servers.
+
+| Instance | Purpose |
+|-----------|----------|
+| Jenkins Server | CI/CD and Docker image building |
+| Kubernetes Master | Cluster Management |
+| Kubernetes Worker 1 | Application Workloads |
+| Kubernetes Worker 2 | Application Workloads |
+
+Each instance communicates over a private network inside AWS.
+
+---
+
+#  EC2 Configuration
+
+All servers use:
+
 - Ubuntu Server
-- VPC
-- Security Groups
-- Elastic IP
-- SSH
+- Containerd Runtime
+- Kubernetes v1.29
+- kubeadm
+- kubelet
+- kubectl
+
+Networking between nodes is handled through the Kubernetes networking layer using Flannel CNI.
 
 ---
 
-# Kubernetes Cluster
+#  Kubernetes Cluster
 
-Cluster Type
+The Kubernetes cluster was initialized using kubeadm.
 
-- Self Managed Kubernetes Cluster
+The master node manages:
 
-Version
+- Scheduling
+- API Server
+- Controller Manager
+- etcd
+- Cluster Administration
 
-```
-v1.29.15
-```
+Worker nodes execute the application workloads.
 
-Nodes
-
-| Node | Role |
-|-------|------|
-| k8s-master | Control Plane |
-| k8s-worker-1 | Worker |
-| k8s-worker-2 | Worker |
-
-Container Runtime
-
-```
-containerd
-```
-
-Networking
-
-```
-Flannel CNI
-```
+The cluster successfully joins all worker nodes and provides a production-like Kubernetes environment.
 
 ---
 
-# Technologies Used
+# Application Architecture
 
-- AWS EC2
-- Ubuntu
-- Docker
-- Kubernetes
-- Helm
-- NGINX Ingress Controller
-- Persistent Volume
-- Persistent Volume Claim
-- NodePort Service
-- ClusterIP Service
-- Java Spring Boot
-- Maven
-- DynamoDB Local
+The Retail Store application consists of independent microservices.
+
+### UI
+
+The UI service provides the frontend web interface where users interact with the application.
+
+It communicates with backend services through Kubernetes ClusterIP Services.
 
 ---
 
-# Project Structure
+### Catalog Service
 
-```
-retail-store-sample-app/
+The catalog service provides product information.
 
-├── src/
-│
-├── catalog/
-│
-├── checkout/
-│
-├── orders/
-│
-├── ui/
-│
-├── carts-db/
-│
-├── Dockerfiles
-│
-├── Kubernetes YAML
-│
-└── Helm Charts
-```
+It exposes REST APIs consumed by the UI.
 
 ---
 
-# Microservices
+### Orders Service
 
-The application consists of the following services.
+The orders service manages customer order processing.
 
-| Service | Purpose |
-|----------|----------|
-| UI | Frontend |
-| Catalog | Product Catalog |
-| Checkout | Order Checkout |
-| Orders | Order Service |
-| Carts DB | DynamoDB Local |
+It communicates internally with checkout and database services.
 
 ---
 
-# Docker
+### Checkout Service
 
-Every microservice was containerized using Docker.
+Checkout handles order confirmation and purchasing workflow.
 
-Images were built from their respective Dockerfiles.
-
-Example
-
-```
-docker build -t ui:v1 .
-```
+It communicates with the orders service.
 
 ---
 
-# Kubernetes Objects Created
+### Carts Database
 
-## Namespace
+A local DynamoDB database stores cart information.
 
-```
-retail-store
-```
+The database is deployed as its own Kubernetes Deployment.
+
+Persistent storage is attached using Persistent Volumes.
 
 ---
 
-## Deployments
+# Docker Containerization
+
+Every microservice is containerized independently.
+
+Separate Dockerfiles are maintained for each service.
+
+Each Docker image is built on the Jenkins server and later deployed to Kubernetes.
+
+Example services:
 
 - UI
 - Catalog
 - Checkout
 - Orders
-- Carts DB
+
+Containerization makes deployment portable and consistent across environments.
 
 ---
 
-## ReplicaSets
+# Kubernetes Manifests
 
-Automatically managed by Deployments.
+The project uses Kubernetes YAML manifests for every resource.
 
----
+Resources include:
 
-## Pods
+- Namespace
+- Deployment
+- Service
+- Persistent Volume
+- Persistent Volume Claim
+- Ingress
 
-Successfully running
+Every microservice has its own Deployment and Service manifest.
 
-```
-kubectl get pods -n retail-store
-```
-
-Output
-
-```
-9 Running Pods
-```
+This makes the project modular and easy to maintain.
 
 ---
 
-## Services
+# Namespace
 
-Created
+A dedicated namespace named **retail-store** was created.
 
-- ClusterIP
-- NodePort
+Using namespaces provides:
 
-Example
+- Resource isolation
+- Better organization
+- Easier management
+- Production-like deployment
 
-```
-kubectl get svc
-```
-
-```
-catalog-service
-orders-service
-checkout-service
-ui-service
-carts-db
-```
+All application components are deployed inside this namespace.
 
 ---
 
-# Rolling Updates
+# Deployments
 
-Updated application images without downtime.
+Each microservice is deployed using Kubernetes Deployments.
 
-Verified using
+Deployments provide:
 
-```
-kubectl rollout status deployment ui
-```
+- Replica management
+- Rolling updates
+- Automatic recovery
+- Pod recreation
+- High availability
 
-Rollback command
-
-```
-kubectl rollout undo deployment ui
-```
+Multiple replicas were configured for frontend and backend services.
 
 ---
 
-# Scaling
+# Services
 
-Scaled deployments manually.
+Each Deployment is exposed internally using Kubernetes Services.
 
-Example
+The following Service types were used:
 
-```
-kubectl scale deployment ui --replicas=2
-```
+### ClusterIP
 
-Verified
+Used for internal communication between microservices.
 
-```
-kubectl get deployment
-```
+Services include:
 
----
-
-# Health Verification
-
-Pods
-
-```
-kubectl get pods
-```
-
-Deployments
-
-```
-kubectl get deployment
-```
-
-Services
-
-```
-kubectl get svc
-```
-
-ReplicaSets
-
-```
-kubectl get rs
-```
+- Catalog
+- Orders
+- Checkout
+- Database
 
 ---
 
-# Helm
+### NodePort
 
-Installed
+The frontend UI is exposed using NodePort.
 
-```
-Helm v3
-```
-
-Used for
-
-- Installing NGINX Ingress Controller
-- Installing Prometheus Stack
+This allows external access to the application through the worker node IP address.
 
 ---
 
-# NGINX Ingress
+# Ingress Controller
 
-Installed
+NGINX Ingress Controller was installed using Helm.
 
-```
-ingress-nginx
-```
+An Ingress resource was configured to expose the application through a single entry point.
 
-Created
+The controller successfully routed incoming HTTP traffic to the frontend service.
 
-```
-Ingress Resource
-```
-
-Host
-
-```
-retail.local
-```
-
-Application successfully routed through Ingress.
+During setup, the admission webhook created networking issues that were resolved by changing the webhook failure policy.
 
 ---
 
 # Persistent Storage
 
-Implemented
+Persistent storage was implemented for the database.
 
-## Persistent Volume
+The following Kubernetes resources were created:
 
-```
-2 Gi
-```
+- Persistent Volume (PV)
+- Persistent Volume Claim (PVC)
 
-## Persistent Volume Claim
+The PV provides physical storage while the PVC requests storage for the application.
 
-Successfully bound
-
-```
-kubectl get pv
-
-STATUS
-
-Bound
-```
-
-```
-kubectl get pvc
-
-STATUS
-
-Bound
-```
-
-Persistent storage attached to
-
-```
-carts-db
-```
+This ensures that application data survives Pod restarts.
 
 ---
 
-# Application Deployment
+# Replica Management
 
-Successfully deployed
+Multiple replicas were configured for important services.
 
-```
-Catalog Service
-Orders Service
-Checkout Service
-UI Service
-Carts DB
-```
+Benefits include:
 
-Verified
+- High Availability
+- Load Distribution
+- Fault Tolerance
+- Zero Downtime
 
-```
-kubectl get all -n retail-store
-```
+Kubernetes automatically recreates failed Pods.
 
 ---
 
-# Commands Used Frequently
+# Kubernetes Networking
 
-Pods
+Internal communication uses Kubernetes DNS.
 
-```
-kubectl get pods -n retail-store
-```
+Each service communicates using service names instead of IP addresses.
 
-Deployments
+Example:
 
 ```
-kubectl get deployment -n retail-store
+catalog-service
+orders-service
+checkout-service
 ```
 
-Services
-
-```
-kubectl get svc -n retail-store
-```
-
-Logs
-
-```
-kubectl logs POD_NAME
-```
-
-Describe
-
-```
-kubectl describe pod POD_NAME
-```
-
-Rollout
-
-```
-kubectl rollout status deployment ui
-```
-
-Scaling
-
-```
-kubectl scale deployment ui --replicas=2
-```
+This allows services to discover each other automatically.
 
 ---
 
-# Monitoring Attempt
+# Security
 
-Installed successfully
+Security was implemented using:
 
-```
-Prometheus
-Grafana
-Node Exporter
-Alertmanager
-Prometheus Operator
-```
+- Kubernetes Namespaces
+- Private Cluster Networking
+- AWS Security Groups
+- Non-root Containers
+- Internal ClusterIP Services
 
-All monitoring pods were running successfully.
-
-However, due to networking issues inside the Kubernetes cluster, the dashboards could not be accessed externally.
+Only the frontend service is exposed externally.
 
 ---
 
-# HPA Attempt
+# Scalability
 
-Installed Metrics Server.
+The architecture is horizontally scalable.
 
-Encountered
+New replicas can be created without modifying application code.
+
+This provides:
+
+- Better performance
+- Improved availability
+- Fault tolerance
+
+---
+
+# Testing
+
+The deployment was verified using Kubernetes commands.
+
+Examples:
+
+```bash
+kubectl get pods
+
+kubectl get svc
+
+kubectl get deployments
+
+kubectl describe pod
+
+kubectl logs
+```
+
+The application was successfully accessed from the browser using the NodePort service.
+
+---
+
+# DevOps Tools Used
+
+- AWS EC2
+- Ubuntu Linux
+- Docker
+- Kubernetes
+- kubeadm
+- kubectl
+- Containerd
+- Flannel CNI
+- Helm
+- NGINX Ingress Controller
+- Persistent Volumes
+- Git
+- GitHub
+- Jenkins
+
+---
+
+# Kubernetes Concepts Practiced
+
+During this project, the following Kubernetes concepts were implemented and practiced:
+
+- Pods
+- ReplicaSets
+- Deployments
+- Services
+- Namespace
+- ClusterIP
+- NodePort
+- Ingress
+- Persistent Volumes
+- Persistent Volume Claims
+- Helm
+- Labels
+- Selectors
+- Rolling Updates
+- Service Discovery
+- Kubernetes Networking
+- Container Runtime
+- Kubernetes DNS
+
+---
+
+# Monitoring (Current Status)
+
+Prometheus and Grafana were installed successfully using the kube-prometheus-stack Helm chart.
+
+All monitoring Pods started successfully.
+
+However, due to networking and DNS-related issues inside the Kubernetes cluster, external access to Grafana and complete monitoring integration could not be finalized during this project.
+
+The installation remains available for future completion.
+
+---
+
+# Screenshots to Include
+
+## 1. AWS Infrastructure
+- EC2 Instances page
+- Running Instances
+- Security Groups
+
+---
+
+## 2. Kubernetes Cluster
+- `kubectl get nodes -o wide`
+
+---
+
+## 3. Namespace
+- `kubectl get namespaces`
+
+---
+
+## 4. Pods
+- `kubectl get pods -n retail-store`
+
+---
+
+## 5. Deployments
+- `kubectl get deployments -n retail-store`
+
+---
+
+## 6. Services
+- `kubectl get svc -n retail-store`
+
+---
+
+## 7. ReplicaSets
+- `kubectl get rs -n retail-store`
+
+---
+
+## 8. Ingress
+- `kubectl get ingress -n retail-store`
+
+---
+
+## 9. Persistent Volume
+- `kubectl get pv`
+
+---
+
+## 10. Persistent Volume Claim
+- `kubectl get pvc -n retail-store`
+
+---
+
+## 11. Browser
+- Retail Store Home Page
+
+---
+
+## 12. Helm
+- `helm list -A`
+
+---
+
+## 13. Monitoring
+- `kubectl get pods -n monitoring`
+
+---
+
+## 14. Project Folder Structure
+- Terminal showing Kubernetes manifests and Dockerfiles
+
+---
+
+## 15. Jenkins Dashboard (if available)
+- Jenkins homepage
+- Build history
+- Docker image build
+
+---
+
+# Suggested Repository Structure
 
 ```
-Metrics API not available
+retail-store-kubernetes/
+│
+├── README.md
+├── LICENSE
+├── .gitignore
+│
+├── kubernetes/
+│   ├── namespace.yaml
+│   ├── catalog-deployment.yaml
+│   ├── checkout-deployment.yaml
+│   ├── orders-deployment.yaml
+│   ├── ui-deployment.yaml
+│   ├── carts-db.yaml
+│   ├── ingress.yaml
+│   ├── pv.yaml
+│   └── pvc.yaml
+│
+├── docker/
+│   ├── ui.Dockerfile
+│   ├── catalog.Dockerfile
+│   ├── checkout.Dockerfile
+│   └── orders.Dockerfile
+│
+├── screenshots/
+│   ├── aws/
+│   ├── kubernetes/
+│   ├── ingress/
+│   ├── storage/
+│   ├── monitoring/
+│   └── application/
+│
+└── docs/
+    └── architecture.png
 ```
-
-Root Cause
-
-Internal Kubernetes networking/DNS issue prevented Metrics Server from communicating with the API Server.
-
-Therefore
-
-Horizontal Pod Autoscaler could not be demonstrated.
-
----
-
-# Challenges Faced
-
-- Metrics Server API unavailable
-- DNS communication issues inside cluster
-- Admission Webhook timeout during Ingress creation
-- Persistent Volume binding issues
-- Service accessibility debugging
-- NodePort accessibility troubleshooting
-
----
-
-# Problems Solved
-
-✔ Built Kubernetes Cluster manually
-
-✔ Configured multi-node architecture
-
-✔ Installed Container Runtime
-
-✔ Configured Flannel networking
-
-✔ Built Docker Images
-
-✔ Deployed Microservices
-
-✔ Created Services
-
-✔ Created Deployments
-
-✔ Managed ReplicaSets
-
-✔ Configured Rolling Updates
-
-✔ Configured Persistent Volumes
-
-✔ Configured Persistent Volume Claims
-
-✔ Installed Helm
-
-✔ Installed NGINX Ingress
-
-✔ Successfully routed application through Ingress
-
----
-
-# Future Improvements
-
-- Horizontal Pod Autoscaler
-- Prometheus Monitoring
-- Grafana Dashboard
-- Blue-Green Deployment
-- Canary Deployment
-- CI/CD using Jenkins
-- ArgoCD
-- AWS ECR Integration
-- TLS using Cert Manager
-- Domain Name with Route53
-- External Load Balancer
 
 ---
 
 # Learning Outcomes
 
-Through this project I gained practical experience in:
-
-- Docker Containerization
-- Kubernetes Administration
-- Kubernetes Networking
-- Helm Package Management
-- Persistent Storage
-- Ingress Management
-- Rolling Updates
-- Scaling Applications
-- Cloud Infrastructure
-- Linux Administration
-- AWS EC2 Management
-- Troubleshooting Kubernetes
+Through this project, I gained practical experience in building and managing a production-style Kubernetes environment on AWS. I learned how to deploy and manage containerized microservices, configure Kubernetes resources, expose applications using Services and Ingress, implement persistent storage with PV/PVC, and troubleshoot real-world infrastructure issues. I also worked with Helm for package management and explored monitoring tools such as Prometheus and Grafana. This project strengthened my understanding of cloud infrastructure, container orchestration, networking, storage, and DevOps best practices while preparing me for real-world Cloud and DevOps Engineer roles.
 
 ---
-
-# Project Status
-
-| Feature | Status |
-|----------|--------|
-| AWS Infrastructure | ✅ Completed |
-| Docker | ✅ Completed |
-| Kubernetes Cluster | ✅ Completed |
-| Multi Node Cluster | ✅ Completed |
-| Microservices Deployment | ✅ Completed |
-| Services | ✅ Completed |
-| Rolling Updates | ✅ Completed |
-| Scaling | ✅ Completed |
-| Persistent Volume | ✅ Completed |
-| Persistent Volume Claim | ✅ Completed |
-| Helm | ✅ Completed |
-| NGINX Ingress | ✅ Completed |
-| Application Deployment | ✅ Completed |
-| HPA | ❌ Pending |
-| Metrics Server | ❌ Pending |
-| Prometheus Dashboard | ❌ Pending |
-| Grafana Dashboard | ❌ Pending |
-| Blue-Green Deployment | ❌ Pending |
-
----
-
-# Author
-
-**Aftab Attar**
-
-AWS Cloud & DevOps Engineer
-
-GitHub: https://github.com/<your-username>
-
-LinkedIn: https://linkedin.com/in/<your-profile>
